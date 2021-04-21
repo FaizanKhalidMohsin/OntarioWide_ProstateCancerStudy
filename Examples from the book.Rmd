@@ -1,0 +1,186 @@
+---
+title: "Examples from the book"
+author: "Faizan Khalid Mohsin"
+date: "February 21, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Chapter 1:
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+
+```{r initialization}
+
+#install.packages("asaur")
+require(asaur)
+require(ggplot2)
+require(dplyr)
+require(survival)
+#checking what dataset are availabe:
+#data()
+
+```
+
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+data1 = gastricXelox
+data_event = subset(data1, delta == 1)
+dim(data_event) # gives 32 people had the event (death or disease progression)
+events = nrow(data_event) # number of events
+person_weeks = sum(data1$timeWeeks) # total number of person-weeks
+events/person_weeks # event rate per person-week
+
+```
+
+## Chapter 2
+
+```{r}
+
+data2=survexp.us
+dim(data2)
+class(data2)
+
+hazMale2004 <- survexp.us[,"male","2004"] # 2004 males
+hazFemale2004 <- survexp.us[,"female","2004"] # 2004 females
+hazMale1994 <- survexp.us[,"male","1994"] # 1994 males
+hazFemale1994 <- survexp.us[,"female","1994"] # 1994 females
+
+tm <- c(0, # birth
+1/365, # first day of life
+7/365, # seventh day of life
+28/365, # fourth week of life
+1:109) # subsequent years
+
+length(tm)
+dim(hazMale2004)
+plot(tm, hazMale2004, add = T)
+plot(tm, hazFemale2004)
+plot(tm, hazMale1994)
+plot(tm, hazFemale1994)
+```
+
+### Plotting survival curves and Kapler-Meier curves using survfit. 
+
+```{r}
+
+timeMonths <- gastricXelox$timeWeeks*7/30.25
+delta <- gastricXelox$delta
+dataXelox = cbind(gastricXelox, timeMonths)
+result.km <- survfit(Surv(timeMonths, delta) ~ 1, conf.type="log-log")
+plot(result.km, conf.int=T, mark="|", xlab="Time in months", ylab="Survival probability", main = "Progression-free Survival in Gastric Cancer Patients")
+result.km  # Gives the median and its 95% CI. 
+
+#install.packages("survminer")
+library(survminer)
+
+# Graph survival curve with "survminer" Package. 
+
+ggsurvplot(result.km, conf.int = F, data = dataXelox , risk.table = TRUE)
+?ggsurvplot
+?jpeg
+```
+
+
+
+## Chapter 4 Nonparametric comparisons of survival distributions
+
+```{r}
+
+# Here we will draw survival curves for two groups (control & treatment)
+
+# This example shows how to deal with survival data in which our main variable of interest is time till prognosis, not time till death or censorship.
+
+# Description of our Problem:
+# The important thing in this example is that the variable of interest is the time to prognosis. If patient is not prognosed with the disease then will use time till death (or censorship) which ever comes first. This is different than what we usually want: time till death (or till censorship). We want to find the time the patient spent free of the disease infecting him (i.e. time till prognosis)
+
+# Important helper function. 
+
+as.date = function(date){
+  
+  #Description:
+  #date: input: takes dates in the format of month/day/year (12/21/2008)
+  #             and converts it into a date using as.Date function. 
+  # the date input must be a character. e.g. date = "12/21/2008"
+  
+  as.Date(date, format = '%m/%d/%Y')
+  # as.Date('1/15/2001', format = '%m/%d/%Y' ) # example
+}
+
+# Testing the function as.date() :
+# as.date("12/21/2000")
+# as.date('12/21/2000')
+# as.date('13/21/2000') # should crash, produce NA
+# as.date('12/41/2000') # should crash, produce NA
+
+
+
+
+
+attach(pancreatic) # make the v a r i a b l e names a c c e s s i b l e
+
+# c o n v e r t t he t e x t da t e s in to R da t e s
+Progression.d <- as.date(as.character(progression))
+OnStudy.d <- as.date(as.character(onstudy))
+Death.d <- as.date(as.character(death))
+
+# compute progression f r e e s u r v i v a l
+progressionOnly <- Progression.d - OnStudy.d
+overallSurvival <- Death.d - OnStudy.d
+pfs <- progressionOnly
+pfs[is.na(pfs)] <- overallSurvival[is.na(pfs)] # here we are choosing time to death (or censorship) if patient was not prognosed with the disease (i.e. pfs is NA)
+
+# c o n v e r t pfs to months
+pfs.month <- pfs / 30.5
+# note t h a t no o b s e r v a t i o n s are censored . This i s advanced stagepancreatic cancer.
+
+
+plot(survfit(Surv(pfs.month) ~ stage ), xlab ="Time in months" , ylab =" Survival probability" , col = c("blue","red"), lwd =2)
+legend ("topright", legend = c("Locally advanced", "Metastatic"), col=c("blue", "red"), lwd =2)
+
+```
+
+Drawing the same graph as above but with the survminer package:
+
+```{r}
+
+makedata = cbind(pancreatic, pfs.month) # Since the ggsurvplot needs a data input we will simply add this column to the original data set
+ggsurvplot(survfit(Surv(pfs.month) ~ stage ), data = makedata, xlab ="Time in months", risk.table = T)
+
+
+```
+
+
+The log-rank test may be fitted to this data as follows:
+
+```{r}
+survdiff(Surv(pfs) ~ stage, rho=0)
+```
+
+We do the same thing but with rho=1 which means are doing the test:
+
+```{r}
+survdiff(Surv(pfs) ~ stage, rho=1)
+```
+
+
+
+
+
+
+
+```{r}
+require(survival)
+fit <- coxph(Surv(futime, fustat) ~ age + ecog.ps,  
+             data=ovarian) 
+temp <- cox.zph(fit) 
+print(temp)                  # display the results 
+plot(temp)                   # plot curves
+```
+
